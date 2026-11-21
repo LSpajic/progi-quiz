@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PROGI Quiz</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 740px;
+      margin: 16px auto;
+      padding: 0 12px 48px;
+      line-height: 1.5;
+      color: #1a1a1a;
+      background: #fafafa;
+      -webkit-text-size-adjust: 100%;
+    }
+    h1, h2 { margin: 0 0 12px; font-weight: 600; }
+    h1 { font-size: 1.35rem; }
+    h2 { font-size: 1.05rem; margin-top: 24px; }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+    .between { justify-content: space-between; }
+    .muted { color: #666; font-size: 0.9rem; }
+    label { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
+    select, button {
+      font: inherit;
+      font-size: 16px;
+      padding: 9px 12px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      background: #fff;
+      color: #1a1a1a;
+      cursor: pointer;
+      touch-action: manipulation;
+      max-width: 100%;
+    }
+    input[type="checkbox"] { width: 18px; height: 18px; }
+    button.primary { background: #1f6feb; color: #fff; border-color: #1f6feb; }
+    @media (hover: hover) {
+      button.primary:hover { background: #1558c0; }
+      .opt:hover:not(:disabled) { background: #f3f6fa; }
+    }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .opt {
+      display: block;
+      width: 100%;
+      min-height: 46px;
+      text-align: left;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      background: #fff;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .opt:active:not(:disabled) { background: #e9eff7; }
+    .opt.selected { border-color: #1f6feb; background: #eef4ff; }
+    .opt.correct { border-color: #2e7d32; background: #e8f5e9; color: #1b5e20; }
+    .opt.wrong { border-color: #c62828; background: #ffebee; color: #b71c1c; }
+    .expl {
+      margin-top: 12px;
+      padding: 12px;
+      border-left: 3px solid #1f6feb;
+      background: #f6f8fa;
+      font-size: 0.95rem;
+    }
+    .q-img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 12px auto;
+      border: 1px solid #eee;
+      background: #fff;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid #e5e5e5; }
+    th { color: #555; font-weight: 600; }
+    .hidden { display: none; }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      font-size: 0.8rem;
+      border-radius: 4px;
+      background: #eee;
+    }
+    .missed-item { border-top: 1px solid #eee; padding: 12px 0; }
+    .missed-item:first-child { border-top: 0; }
+    @media (max-width: 560px) {
+      #q-actions button, #btn-start { width: 100%; }
+      .kbd-hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="row between">
+    <h1>PROGI Quiz</h1>
+    <span id="overall-stats" class="muted"></span>
+  </div>
+
+  <!-- HOME VIEW -->
+  <div id="view-home">
+    <div class="card">
+      <div class="row">
+        <label>Poglavlje:
+          <select id="sel-chapter"></select>
+        </label>
+        <label>Skup:
+          <select id="sel-pool">
+            <option value="all">Sva pitanja</option>
+            <option value="unseen">Samo neodgovorena</option>
+            <option value="missed">Samo krivo odgovorena</option>
+            <option value="todo">Neodgovorena + kriva</option>
+          </select>
+        </label>
+        <label>Broj:
+          <select id="sel-count">
+            <option value="0">Sva</option>
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="30">30</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+      </div>
+      <div class="row between">
+        <label><input type="checkbox" id="chk-shuffle" checked> Promiješaj pitanja</label>
+        <div class="row" style="margin:0">
+          <span id="pool-count" class="muted"></span>
+          <button id="btn-start" class="primary">Start Run</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row between">
+        <h2 style="margin:0">Povijest prolazaka (Runs)</h2>
+        <button id="btn-reset" class="muted">Reset progress</button>
+      </div>
+      <div id="runs-container" class="table-wrap" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <!-- QUIZ VIEW -->
+  <div id="view-quiz" class="hidden">
+    <div class="row between">
+      <span id="quiz-progress" class="muted"></span>
+      <button id="btn-end">Završi run</button>
+    </div>
+    <div class="card">
+      <div id="q-meta" class="muted" style="margin-bottom:6px"></div>
+      <div id="q-text" style="font-weight:500; margin-bottom:10px"></div>
+      <img id="q-img" class="q-img hidden" alt="Dijagram">
+      <pre id="q-code" class="hidden"></pre>
+      <div id="q-hint" class="muted hidden" style="margin-bottom:8px"></div>
+      <div id="q-options"></div>
+      <div id="q-actions" class="row" style="margin-top:12px; margin-bottom:0">
+        <button id="btn-check" class="primary hidden">Provjeri</button>
+        <button id="btn-next" class="primary hidden">Dalje →</button>
+      </div>
+      <div id="q-expl" class="expl hidden"></div>
+    </div>
+    <div class="muted kbd-hint" style="font-size:0.82rem">Tipke: A–F ili 1–6 za odabir · Enter / Space za dalje</div>
+  </div>
+
+  <!-- SUMMARY VIEW -->
+  <div id="view-summary" class="hidden">
+    <div class="card">
+      <h2 style="margin-top:0">Rezultat prolaska</h2>
+      <div id="sum-score" style="font-size:1.3rem; font-weight:600; margin-bottom:12px"></div>
+      <div class="row" style="margin-bottom:0">
+        <button id="btn-retry-missed" class="primary hidden">Ponovi kriva</button>
+        <button id="btn-home">Natrag na početak</button>
+      </div>
+    </div>
+    <div id="sum-missed-card" class="card hidden">
+      <h2 style="margin-top:0">Krivo odgovorena pitanja</h2>
+      <div id="sum-missed-list"></div>
+    </div>
+  </div>
+
+  <script src="questions.js"></script>
+  <script>
+    const STORAGE_KEY = 'progi_quiz_v1';
+    const QUESTIONS = window.QUESTIONS;
+    const CHAPTERS = window.CHAPTERS;
+    const Q_BY_ID = Object.fromEntries(QUESTIONS.map(q => [q.id, q]));
+
+    function loadState() {
+      try {
+        const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (s && s.stats && s.runs) return s;
+      } catch {}
+      return { stats: {}, runs: [] }; // stats[id] = { attempts, correct, lastCorrect }
+    }
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    let state = loadState();
+    let run = null; // { label, queue, idx, results: [{id, chosen, ok}], selected: Set, answered: bool }
+
+    const $ = id => document.getElementById(id);
+
+    function showView(name) {
+      $('view-home').classList.toggle('hidden', name !== 'home');
+      $('view-quiz').classList.toggle('hidden', name !== 'quiz');
+      $('view-summary').classList.toggle('hidden', name !== 'summary');
+    }
+
+    function initHome() {
+      const sel = $('sel-chapter');
+      sel.innerHTML = `<option value="all">Sva poglavlja (${QUESTIONS.length})</option>`;
+      for (const [ch, title] of Object.entries(CHAPTERS)) {
+        const cnt = QUESTIONS.filter(q => q.chapter === Number(ch)).length;
+        const opt = document.createElement('option');
+        opt.value = ch;
+        opt.textContent = `${ch}. ${title} (${cnt})`;
+        sel.appendChild(opt);
+      }
+      sel.onchange = updatePoolCount;
+      $('sel-pool').onchange = updatePoolCount;
+      $('btn-start').onclick = startSelectedRun;
+      $('btn-reset').onclick = () => {
+        if (!confirm('Obrisati sav napredak i povijest prolazaka?')) return;
+        state = { stats: {}, runs: [] };
+        saveState();
+        renderHome();
+      };
+      $('btn-end').onclick = finishRun;
+      $('btn-home').onclick = () => { renderHome(); showView('home'); };
+      renderHome();
+    }
+
+    function getFilteredQuestions() {
+      const ch = $('sel-chapter').value;
+      const pool = $('sel-pool').value;
+      return QUESTIONS.filter(q => {
+        if (ch !== 'all' && q.chapter !== Number(ch)) return false;
+        const st = state.stats[q.id];
+        if (pool === 'unseen') return !st;
+        if (pool === 'missed') return st && !st.lastCorrect;
+        if (pool === 'todo') return !st || !st.lastCorrect;
+        return true;
+      });
+    }
+
+    function updatePoolCount() {
+      const list = getFilteredQuestions();
+      $('pool-count').textContent = `Dostupno: ${list.length}`;
+      $('btn-start').disabled = list.length === 0;
+    }
+
+    function renderHome() {
+      const total = QUESTIONS.length;
+      let mastered = 0, missed = 0;
+      for (const q of QUESTIONS) {
+        const st = state.stats[q.id];
+        if (!st) continue;
+        if (st.lastCorrect) mastered++;
+        else missed++;
+      }
+      const unseen = total - mastered - missed;
+      $('overall-stats').textContent = `Točno: ${mastered}/${total} · Krivo: ${missed} · Neodgovoreno: ${unseen}`;
+      updatePoolCount();
+
+      const cont = $('runs-container');
+      if (state.runs.length === 0) {
+        cont.innerHTML = '<div class="muted">Još nema završenih prolazaka.</div>';
+        return;
+      }
+      const rows = [...state.runs].reverse().map((r, i) => {
+        const num = state.runs.length - i;
+        const pct = r.total ? Math.round((r.correct / r.total) * 100) : 0;
+        const dt = new Date(r.date).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const retryBtn = r.missedIds.length
+          ? `<button data-retry="${num - 1}">Ponovi kriva (${r.missedIds.length})</button>`
+          : '<span class="muted">—</span>';
+        return `<tr>
+          <td>#${num}</td>
+          <td>${dt}</td>
+          <td>${escapeHtml(r.label)}</td>
+          <td><b>${r.correct}/${r.total}</b> (${pct}%)</td>
+          <td>${retryBtn}</td>
+        </tr>`;
+      }).join('');
+      cont.innerHTML = `<table>
+        <thead><tr><th>Run</th><th>Vrijeme</th><th>Skup</th><th>Rezultat</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+      cont.querySelectorAll('button[data-retry]').forEach(btn => {
+        btn.onclick = () => {
+          const r = state.runs[Number(btn.dataset.retry)];
+          const qs = r.missedIds.map(id => Q_BY_ID[id]).filter(Boolean);
+          if (qs.length) startRun(qs, `Ponavljanje #${Number(btn.dataset.retry) + 1}`);
+        };
+      });
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function startSelectedRun() {
+      let list = getFilteredQuestions();
+      if ($('chk-shuffle').checked) list = shuffle(list);
+      const count = Number($('sel-count').value);
+      if (count > 0 && list.length > count) list = list.slice(0, count);
+      const ch = $('sel-chapter').value;
+      const poolText = $('sel-pool').selectedOptions[0].textContent;
+      const label = (ch === 'all' ? 'Sva pogl.' : `Pogl. ${ch}`) + (poolText !== 'Sva pitanja' ? ` · ${poolText}` : '');
+      startRun(list, label);
+    }
+
+    function startRun(queue, label) {
+      run = { label, queue, idx: 0, results: [], selected: new Set(), answered: false };
+      showView('quiz');
+      renderQuestion();
+    }
+
+    function isMulti(q) {
+      return q.correct.length > 1 && !q.acceptAny;
+    }
+
+    function renderQuestion() {
+      const q = run.queue[run.idx];
+      const correctSoFar = run.results.filter(r => r.ok).length;
+      $('quiz-progress').textContent = `Pitanje ${run.idx + 1} / ${run.queue.length} · Točno: ${correctSoFar}`;
+      $('q-meta').innerHTML = `<span class="badge">${q.id}</span> ${q.source ? `[${escapeHtml(q.source)}] · ` : ''}Poglavlje ${q.chapter}`;
+      $('q-text').textContent = q.question;
+
+      if (q.image) {
+        $('q-img').src = q.image;
+        $('q-img').classList.remove('hidden');
+      } else {
+        $('q-img').classList.add('hidden');
+      }
+
+      if (q.code) {
+        $('q-code').textContent = q.code;
+        $('q-code').classList.remove('hidden');
+      } else {
+        $('q-code').classList.add('hidden');
+      }
+
+      const multi = isMulti(q);
+      if (multi) {
+        $('q-hint').textContent = 'Više točnih odgovora — označi sve točne pa klikni Provjeri.';
+        $('q-hint').classList.remove('hidden');
+      } else {
+        $('q-hint').classList.add('hidden');
+      }
+
+      run.selected = new Set();
+      run.answered = false;
+
+      const optBox = $('q-options');
+      optBox.innerHTML = '';
+      q.options.forEach(o => {
+        const btn = document.createElement('button');
+        btn.className = 'opt';
+        btn.dataset.key = o.key;
+        btn.textContent = `${o.key}) ${o.text}`;
+        btn.onclick = () => onOptionClick(o.key);
+        optBox.appendChild(btn);
+      });
+
+      $('btn-check').classList.toggle('hidden', !multi);
+      $('btn-check').disabled = true;
+      $('btn-check').onclick = submitAnswer;
+      $('btn-next').classList.add('hidden');
+      $('btn-next').onclick = nextQuestion;
+      $('q-expl').classList.add('hidden');
+    }
+
+    function onOptionClick(key) {
+      if (run.answered) return;
+      const q = run.queue[run.idx];
+      if (isMulti(q)) {
+        if (run.selected.has(key)) run.selected.delete(key);
+        else run.selected.add(key);
+        document.querySelectorAll('#q-options .opt').forEach(btn => {
+          btn.classList.toggle('selected', run.selected.has(btn.dataset.key));
+        });
+        $('btn-check').disabled = run.selected.size === 0;
+      } else {
+        run.selected = new Set([key]);
+        submitAnswer();
+      }
+    }
+
+    function submitAnswer() {
+      if (run.answered || run.selected.size === 0) return;
+      run.answered = true;
+      const q = run.queue[run.idx];
+      const chosen = [...run.selected].sort();
+      const correctSet = new Set(q.correct);
+
+      let ok;
+      if (q.acceptAny) {
+        ok = chosen.length === 1 && correctSet.has(chosen[0]);
+      } else {
+        ok = chosen.length === q.correct.length && chosen.every(k => correctSet.has(k));
+      }
+
+      run.results.push({ id: q.id, chosen, ok });
+
+      const st = state.stats[q.id] || { attempts: 0, correct: 0, lastCorrect: false };
+      st.attempts += 1;
+      if (ok) st.correct += 1;
+      st.lastCorrect = ok;
+      state.stats[q.id] = st;
+      saveState();
+
+      document.querySelectorAll('#q-options .opt').forEach(btn => {
+        const k = btn.dataset.key;
+        btn.disabled = true;
+        btn.classList.remove('selected');
+        if (correctSet.has(k)) btn.classList.add('correct');
+        else if (run.selected.has(k)) btn.classList.add('wrong');
+      });
+
+      const ansLabel = q.acceptAny ? q.correct.join(' ili ') : q.correct.join(', ');
+      $('q-expl').innerHTML = `<b>${ok ? 'Točno!' : 'Krivo.'}</b> Rješenje: <b>${ansLabel}</b> — ${escapeHtml(q.explanation)}`;
+      $('q-expl').classList.remove('hidden');
+      $('btn-check').classList.add('hidden');
+      $('btn-next').textContent = run.idx + 1 < run.queue.length ? 'Dalje →' : 'Završi';
+      $('btn-next').classList.remove('hidden');
+
+      const correctSoFar = run.results.filter(r => r.ok).length;
+      $('quiz-progress').textContent = `Pitanje ${run.idx + 1} / ${run.queue.length} · Točno: ${correctSoFar}`;
+    }
+
+    function nextQuestion() {
+      if (run.idx + 1 < run.queue.length) {
+        run.idx += 1;
+        renderQuestion();
+      } else {
+        finishRun();
+      }
+    }
+
+    function finishRun() {
+      if (!run) return;
+      const total = run.results.length;
+      const correct = run.results.filter(r => r.ok).length;
+      const missed = run.results.filter(r => !r.ok);
+
+      if (total > 0) {
+        state.runs.push({
+          date: Date.now(),
+          label: run.label,
+          correct,
+          total,
+          missedIds: missed.map(m => m.id)
+        });
+        saveState();
+      }
+
+      const pct = total ? Math.round((correct / total) * 100) : 0;
+      $('sum-score').textContent = total ? `${correct} / ${total} (${pct}%)` : 'Nijedno pitanje nije odgovoreno.';
+
+      const retryBtn = $('btn-retry-missed');
+      if (missed.length > 0) {
+        retryBtn.textContent = `Ponovi kriva (${missed.length})`;
+        retryBtn.classList.remove('hidden');
+        retryBtn.onclick = () => {
+          const qs = missed.map(m => Q_BY_ID[m.id]).filter(Boolean);
+          startRun(qs, 'Ponavljanje krivih');
+        };
+      } else {
+        retryBtn.classList.add('hidden');
+      }
+
+      const missedCard = $('sum-missed-card');
+      if (missed.length > 0) {
+        missedCard.classList.remove('hidden');
+        $('sum-missed-list').innerHTML = missed.map(m => {
+          const q = Q_BY_ID[m.id];
+          const ansLabel = q.acceptAny ? q.correct.join(' ili ') : q.correct.join(', ');
+          return `<div class="missed-item">
+            <div><span class="badge">${q.id}</span> <b>${escapeHtml(q.question)}</b></div>
+            <div class="muted" style="margin:4px 0">Tvoj odgovor: <b>${m.chosen.join(', ')}</b> · Točno: <b>${ansLabel}</b></div>
+            <div style="font-size:0.9rem">${escapeHtml(q.explanation)}</div>
+          </div>`;
+        }).join('');
+      } else {
+        missedCard.classList.add('hidden');
+      }
+
+      run = null;
+      renderHome();
+      showView('summary');
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    document.addEventListener('keydown', e => {
+      if ($('view-quiz').classList.contains('hidden') || !run) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      const q = run.queue[run.idx];
+      if (!run.answered) {
+        const k = e.key.toLowerCase();
+        const num = Number(k);
+        let key = null;
+        if (q.options.some(o => o.key === k)) key = k;
+        else if (num >= 1 && num <= q.options.length) key = q.options[num - 1].key;
+        if (key) {
+          e.preventDefault();
+          onOptionClick(key);
+        } else if (e.key === 'Enter' && isMulti(q) && run.selected.size > 0) {
+          e.preventDefault();
+          submitAnswer();
+        }
+      } else if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        nextQuestion();
+      }
+    });
+
+    initHome();
+  </script>
+</body>
+</html>
+
